@@ -1,0 +1,219 @@
+<script language="javascript" src="jquery/jquery.js"></script>
+<script language="javascript" src="jquery/jquery-ui-1.8.13.custom.min.js"></script>
+<script language="javascript" src="public_mobile.js"></script>
+<link href="jquery/smoothness/jquery-ui-1.8.4.custom.css" media="all" rel="stylesheet" type="text/css">
+<link href="style.css" media="all" rel="stylesheet" type="text/css">
+<link href="960.css" media="all" rel="stylesheet" type="text/css">
+<script>
+    
+    var fetchingCountries = null;
+    var fetchingCities = null;
+    var fetchingCompanies = null;
+    var fetchingRoutes = null;
+    var fetchingStopbuses = null;
+    
+    var utils = {
+        convertToOptions : function(jsonData, attributes){
+            options = "<option></option>";
+            
+            if(!attributes){
+                attributes = "";
+            }
+            
+            $(jsonData).each(function(){
+                options += "<option " + attributes + " value='" + this.id + "'>" + this.name + "</option>"
+            });
+            return options;
+        },
+        convertToJson : function(stringData){
+            return eval("(" + stringData + ")");
+        }
+    }
+    
+    //SETTING FILTERS
+    var filters = {
+        init : function(){
+            this.setFilters();
+        },
+        setFilters : function(){
+            this.setChangeEventOnSelects();
+            this.fillCountrySelect();
+        },
+        setChangeEventOnSelects : function(){
+             $("#select_country").bind({
+                 change : this.fillCitySelect
+             });
+             $("#select_city").bind({
+                 change : this.fillCompanySelect,
+             });
+             $("#select_company").bind({
+                 change : this.fillRouteSelect
+             });
+             $("#select_route").bind({
+                 change : this.fillStopbusSelect
+             });
+         },
+        fillCountrySelect : function(){
+            if(fetchingCountries){
+                fetchingCountries.abort();
+            }
+            fetchingCountries = $.ajax({
+                type:"POST",
+                url:"http://everbuslocation.herokuapp.com/public_mobile/getCountries",
+                success: function(data){
+                    countries = utils.convertToJson(data);
+                    $("#select_country").html(utils.convertToOptions(countries, null));
+                    fetchingCountries = null;
+                }
+            });
+        },
+        fillCitySelect : function(e){
+            //if this is: undefined, null or letters
+            country = $(this).val();
+            
+            if(!(country>0)){
+                country = "";
+            }
+            if(fetchingCities){
+                fetchingCities.abort();
+            }
+            fetchingCities = $.ajax({
+                type:"POST",
+                url: "http://everbuslocation.herokuapp.com/public_mobile/getCities",
+                data: {country_id:country},
+                success: function(data){
+                    cities = utils.convertToJson(data);
+                    $("#select_city").html(utils.convertToOptions(cities, null));
+                    fetchingCities = null;
+                }
+            });
+            $("#select_city").trigger("change");
+        },
+        fillCompanySelect : function(){
+            //if this is: undefined, null or letters
+            city = $(this).val();
+            
+            if(!(city>0)){
+                city = "";
+            }
+            if(fetchingCompanies){
+                fetchingCompanies.abort();
+            }
+            fetchingCompanies = $.ajax({
+                type:"POST",
+                url:"http://everbuslocation.herokuapp.com/public_mobile/getCompanies",
+                data:{city_id:city},
+                success: function(data){
+                    companies = utils.convertToJson(data);
+                    $("#select_company").html(utils.convertToOptions(companies, null));
+                    fetchingCompanies = null;
+                }
+            });
+            $("#select_company").trigger("change");
+        },
+        fillRouteSelect : function(company){
+            //if this is: undefined, null or letters
+            company = $(this).val();
+            
+            if(!(company>0)){
+                company = "";
+            }
+            if(fetchingRoutes){
+                fetchingRoutes.abort();
+            }
+            fetchingRoutes = $.ajax({
+                type:"POST",
+                url:"http://everbuslocation.herokuapp.com/public_mobile/getRoutes",
+                data:{company_id:company},
+                success: function(data){
+                                        
+                    options = data;
+                    
+                    $("#select_route").html(options);
+                    fetchingRoutes = null;
+                }
+            });
+            $("#select_route").trigger("change");
+        },
+        fillStopbusSelect : function(route){
+            //if this is: undefined, null or letters
+            var route = $(this).val();
+            var is_going = $(this).find("option:selected").attr("going");
+                        
+            if(!(route>0)){
+                route = "";
+            }
+            if(fetchingStopbuses){
+                fetchingStopbuses.abort();
+            }
+            fetchingStopbuses = $.ajax({
+                type:"POST",
+                url:"http://everbuslocation.herokuapp.com/public_mobile/getBusStops",
+                data:{route_id:route, is_going:is_going},
+                success: function(data){
+                    $("#select_stopbus").html(data);
+                    fetchingStopbuses = null;
+                }
+            });
+            $("#select_stopbus").trigger("change");
+        }
+    };    
+    
+    $(function(){
+        
+        filters.init();
+
+    	$("#select_route").change(function(){
+    		$("#is_going").val($(this).find("option:selected").attr("going"));
+    	});
+
+    	var fetchingFilters = null;
+    	$("#filters_btn").click(function(){
+    		if(fetchingFilters) fetchingFilters.abort();
+    		fetchingFilters = $.ajax({
+    			type:"POST",
+    			url:"http://everbuslocation.herokuapp.com/public/filter",
+    			data:{country_id:$("#select_country").val(), city_id:$("#select_city").val(), company_id:$("#select_company").val(), route_id:$("#select_route").val(), is_going:$("#is_going").val(), bus_stop_id:$("#select_stopbus").val()},
+    			success: function(data){
+    				fetchingFilters = null;
+    				$("#response").html(data);
+    			}
+    		});
+    	});
+    });
+
+		$(function() {
+				$( "select" ).combobox();
+				$("#filters_btn").button();
+				$(".filter").css("margin-top","10px");
+			});
+</script>
+
+<div>
+    <div id="loading"></div>
+		<fieldset style="width:270px;">
+			<div class="header" style="margin-left:40px;"><h1>Ever Bus Location</h1></div>
+	    <div id="filters" style="float:left;">
+	        <div id="select_country_div" class="filter" style="margin-left:8px">
+	            <b>Country: </b><select id="select_country"></select>
+	        </div>
+	        <div id="select_city_div" class="filter" style="margin-left:30px">
+	            <b>City: </b><select id="select_city"></select>
+	        </div>
+	        <div id="select_company_div" class="filter" style="margin-left:0px">
+	            <b>Company: </b><select id="select_company"></select>
+	        </div>
+	        <div id="select_route_div" class="filter" style="margin-left:20px">
+	            <b>Route: </b><select id="select_route"></select>
+	        </div>
+	        <div id="select_stopbus_div" class="filter" style="margin-left:4px">
+	            <b>Bus Stop: </b><select id="select_stopbus"></select>
+	        </div>
+					<div style="height:30px;margin-top:10px;margin-left:100px;">
+						<button id="filters_btn" style="height:30px;position:relative;" />Filter</button>
+					</div>
+	    </div>
+	    <input type="hidden" name="is_going" id="is_going" value="0" />
+			<p id="response" style="float:left;"></p>
+		</fieldset>
+</div>
